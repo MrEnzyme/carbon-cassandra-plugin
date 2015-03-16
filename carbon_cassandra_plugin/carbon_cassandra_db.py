@@ -306,16 +306,17 @@ class DataTree(object):
       raise ValueError("query can not be specified with startToken and "\
         "endToken")
 
+    branchQuery = not query.endswith('*') and not '*' in query
     # If query ends with '*', only remove trailing '*' if query doesn't contain any other wildcards
     if query == '*':
       query = 'root'
     elif query:
+      if '{' in query:
+        query = _fix_wildcard_groups(query)
+
       if query.endswith('*') and query[-2] == '.':
         if not _query_contains_wildcards(query[:-2]):
           query = query[:-2]
-
-      if '{' in query:
-        query = _fix_wildcard_groups(query)
 
     def _genAllWithWildcards():
       """Generator to yield (key, col, value) triples.
@@ -353,7 +354,7 @@ class DataTree(object):
             child_nodes.append((col, "metric", "true"))
           # Found a matching branch node. Process children.
           elif _is_prefix(query_re, col):
-            if level >= len(query_split):
+            if level >= len(query_split) and len(col.split('.')) == len(query_re):
               # We've reached a branch node. Append and move on.
               child_nodes.append((key, col, value))
               continue
@@ -391,6 +392,8 @@ class DataTree(object):
 
     childs = []
     for key, col, value in colsIter:
+      if key == query and branchQuery:
+        return [(query, col == 'metric')]
       if col == 'metric' and value == 'true':
         # the query path is a metric
         childs.append((key, True))
